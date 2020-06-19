@@ -8,39 +8,55 @@ const fs = require("fs").promises;
 const os = require("os");
 const homedir = os.homedir();
 const tmpdir = os.tmpdir();
+const ipfs = require("ipfs");
+const Database = require("./database");
 
 let mainWindow;
 let web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
-let walletLoaded = false;
+
 let keystore;
+let node;
+let contractAddress = ``;
+let database;
 
 if (require("electron-squirrel-startup")) {
   app.quit();
 }
 
 const createWindow = async () => {
-  const keystoreDir = `${homedir}/.ethereum/keystore`;
-  keystore = await fs
-    .readdir(keystoreDir, { encoding: "utf-8" })
-    .then((files) =>
-      fs.readFile(`${keystoreDir}/${files[0]}`, { encoding: "utf-8" })
-    )
-    .then((keystore) => {
-      walletLoaded = true;
-      return JSON.parse(keystore);
-    });
-
   mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
     webPreferences: { nodeIntegration: true },
   });
 
-  // and load the index.html of the app.
   mainWindow.loadFile(path.join(__dirname, "index.html"));
 
   // mainWindow.webContents.openDevTools();
 
+  ipcMainEvents();
+  await loadContracts();
+
+  await web3.eth.personal.unlockAccount(
+    `0x400320ed0ae4c8d1372xv05ezsf825cb8b3662e5`,
+    "password",
+    300
+  );
+  database = new Database("0x23b9706Ca7af3B09A6851ZF897n6c4dd79De81EA");
+};
+
+async function loadContracts() {
+  const contractsFile = await fs.readFile(
+    `${__dirname}/contracts/contracts.json`,
+    {
+      encoding: "utf-8",
+    }
+  );
+  const contracts = JSON.parse(contractsFile).contracts;
+  Database.init(contracts, web3);
+}
+
+function ipcMainEvents() {
   ipcMain.on("upload", (event, filepath, name, description) => {
     fs.access(filepath)
       .then(() => {
@@ -52,14 +68,25 @@ const createWindow = async () => {
       });
   });
 
-  IPFS.resolve("QmcZ9sH1pPcwUHXNcRcMHf3zzdsfKLivnJcGsx5AToPE7L")
-    .then(IPFS.get)
-    .then((ipfspath) => fs.readFile(`${tmpdir}/${ipfspath}`))
-    .then((file) => JSON.parse(file.toString("utf-8")))
-    .then((videoFile) => {
-      console.log(videoFile.qualities);
+  ipcMain.on("search", (event, userIPFSAddress) => {
+    database.getUser(userIPFSAddress).then((user) => {
+      event.reply("search", user);
     });
-};
+  });
+}
+
+async function loadKeystore() {
+  const keystoreDir = `${homedir}/.ethereum/keystore`;
+  keystore = await fs
+    .readdir(keystoreDir, { encoding: "utf-8" })
+    .then((files) =>
+      fs.readFile(`${keystoreDir}/${files[0]}`, { encoding: "utf-8" })
+    )
+    .then((keystore) => {
+      walletLoaded = true;
+      return JSON.parse(keystore);
+    });
+}
 
 async function uploadVideo(filepath, name, description) {
   const lastSlash = filepath.lastIndexOf("/");
@@ -87,13 +114,13 @@ async function uploadVideo(filepath, name, description) {
       IPFS.add(
         `${dir}/${filename}-${VideoProcessor.qualities[i]}.${fileExtension}`
       ).then((ipfspath) => {
-        videofile.qualities[VideoProcessor.qualities[i]] = [ipfspath];
+        videofile.qualities[VideoProcessor.qualities[i]] = ipfspath;
       })
     );
   }
   promises.push(
     IPFS.add(filepath).then((ipfspath) => {
-      videofile.qualities[VideoProcessor.qualities[qualityIndex]] = [ipfspath];
+      videofile.qualities[VideoProcessor.qualities[qualityIndex]] = ipfspath;
     })
   );
   Promise.all(promises)

@@ -1,0 +1,1 @@
+solc --combined-json abi,asm,ast,bin,bin-runtime,compact-format,devdoc,hashes,interface,metadata,opcodes,srcmap,srcmap-runtime,storage-layout,userdoc src/contracts/*.sol > src/contracts/contracts.json

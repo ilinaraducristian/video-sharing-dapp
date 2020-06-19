@@ -1,0 +1,1 @@
+geth --datadir private_network --http --http.api personal,web3,eth --dev --allow-insecure-unlock

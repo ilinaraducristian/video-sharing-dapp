@@ -3,23 +3,42 @@
   <head>
     <meta charset="UTF-8" />
     <title>Video sharing dapp</title>
-  </head>
-  <body>
-    <h1></h1>
-    <h1>Upload video</h1>
-    <form action="">
-      <label for="name">Name:</label>
-      <input type="text" name="name" id="name" />
-      <br />
-      <label for="description">Description:</label>
-      <textarea type="text" name="description" id="description"> </textarea>
-      <br />
-      <input type="file" id="video" name="video" />
-      <br />
-      <button type="submit" id="upload">Upload</button>
-    </form>
+    <link
+      rel="stylesheet"
+      href="../node_modules/bootstrap/dist/css/bootstrap.min.css"
+    />
+    <link rel="stylesheet" href="index.css" />
+    <script>
+      let $ = require("jquery");
+    </script>
+    <script>
+      require("popper.js");
+    </script>
+    <script>
+      require("bootstrap");
+    </script>
     <script>
       require("./renderer.js");
     </script>
+  </head>
+  <body>
+    <div class="container" id="main">
+      <form>
+        <div class="row">
+          <div class="col-2">LOGO</div>
+          <div class="col-8">
+            <div class="form-group">
+              <input type="text" class="form-control" id="user-ipfs-address" />
+            </div>
+          </div>
+          <div class="col-2">
+            <button type="button" class="btn" id="search">
+              🔎
+            </button>
+          </div>
+        </div>
+      </form>
+      User:
+    </div>
   </body>
 </html>
