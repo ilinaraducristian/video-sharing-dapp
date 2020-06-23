@@ -8,20 +8,34 @@ const fs = require("fs").promises;
 const os = require("os");
 const homedir = os.homedir();
 const tmpdir = os.tmpdir();
-const ipfs = require("ipfs");
 const Database = require("./database");
-
-let mainWindow;
-let web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
-
-let keystore;
-let node;
-let contractAddress = ``;
-let database;
 
 if (require("electron-squirrel-startup")) {
   app.quit();
 }
+
+app.on("ready", createWindow);
+
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
+});
+
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
+});
+
+let mainWindow;
+const web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
+const contractAddress = `0x32600864Dc2f94d8e62BBE7d63618120831CEaFd`;
+
+let keystore;
+let node;
+let database;
+let isIPFSInitialized = false;
 
 const createWindow = async () => {
   mainWindow = new BrowserWindow({
@@ -35,14 +49,12 @@ const createWindow = async () => {
   // mainWindow.webContents.openDevTools();
 
   ipcMainEvents();
-  await loadContracts();
 
-  await web3.eth.personal.unlockAccount(
-    `0x400320ed0ae4c8d1372xv05ezsf825cb8b3662e5`,
-    "password",
-    300
-  );
-  database = new Database("0x23b9706Ca7af3B09A6851ZF897n6c4dd79De81EA");
+  loadContracts();
+
+  IPFS.init().then(() => {
+    this.ipfsInitialized = true;
+  });
 };
 
 async function loadContracts() {
@@ -54,6 +66,7 @@ async function loadContracts() {
   );
   const contracts = JSON.parse(contractsFile).contracts;
   Database.init(contracts, web3);
+  database = new Database(contractAddress);
 }
 
 function ipcMainEvents() {
@@ -68,10 +81,32 @@ function ipcMainEvents() {
       });
   });
 
-  ipcMain.on("search", (event, userIPFSAddress) => {
-    database.getUser(userIPFSAddress).then((user) => {
-      event.reply("search", user);
-    });
+  ipcMain.on("search", async (event, userIPFSAddress) => {
+    const videos = [];
+    const user = await database.getUser(userIPFSAddress);
+    const videosIPFSPath = (await IPFS.cat(user.videosIPFSAddress))
+      .toString("utf-8")
+      .match(/.+/g);
+    for (const videoIPFSPath of videosIPFSPath) {
+      const files = await IPFS.ls(videoIPFSPath);
+      let metadata = files.find((file) => file.name === "metadata.json");
+      if (metadata == null) return;
+      try {
+        metadata = JSON.parse((await IPFS.cat(metadata.path)).toString("utf8"));
+      } catch {
+        return;
+      }
+      const thumbnail = await IPFS.cat(
+        `${videoIPFSPath}/${metadata.thumbnail}`
+      );
+      metadata.thumbnail = {
+        filename: metadata.thumbnail,
+        base64: thumbnail.toString("base64"),
+      };
+      videos.push(metadata);
+    }
+    event.reply("search", videos);
+    // const videos = await IPFS.ls(videosIPFSPath)
   });
 }
 
@@ -144,17 +179,3 @@ async function uploadVideo(filepath, name, description) {
 function sendToRenderer(channel, ...args) {
   mainWindow.webContents.send(channel, args);
 }
-
-app.on("ready", createWindow);
-
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
-
-app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
-});

@@ -2,48 +2,69 @@ const fs = require("fs").promises;
 const exec = require("child_process").exec;
 const tmpdir = require("os").tmpdir;
 const ipfs = require("ipfs");
+const BufferList = require("bl/BufferList");
 
 module.exports = class IPFS {
-  constructor(identity) {
-    if (identity != undefined) this.identity = identity;
-  }
+  static node;
 
-  async init() {
-    if (this.identity == undefined) {
-      this.node = await ipfs.create();
+  static async init(identity) {
+    if (identity == undefined) {
+      IPFS.node = await ipfs.create();
     } else {
-      this.node = await ipfs.create({
+      IPFS.node = await ipfs.create({
         config: {
-          Identity: this.identity,
+          Identity: identity,
         },
       });
     }
   }
 
-  async newIdentity() {}
-
   static add(filepath) {
-    this.node.add();
-    // return new Promise((resolve, reject) =>
-    //   exec(`ipfs add ${filepath}`, (err, stdout, stderr) => {
-    //     if (err) return reject({ err, stderr });
-    //     resolve(stdout.split(" ")[1].trim());
-    //   })
-    // );
+    return IPFS.node.add(filepath, { timeout: 3000 });
   }
 
-  static get(ipfspath) {
-    return new Promise((resolve, reject) =>
-      exec(`ipfs get -o ${tmpdir()} ${ipfspath}`, (err, stdout, stderr) => {
-        if (err) return reject({ err, stderr });
-        resolve(ipfspath);
-      })
-    );
+  static async ls(ipfsPath) {
+    const chunks = [];
+    for await (const chunk of IPFS.node.ls(ipfsPath, { timeout: 3000 })) {
+      chunks.push(chunk);
+    }
+
+    return chunks;
   }
 
-  static publish(ipfspath) {
+  static async cat(ipfsPath) {
+    const chunks = [];
+    for await (const chunk of IPFS.node.cat(ipfsPath, { timeout: 3000 })) {
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks);
+  }
+
+  static async add(filePath) {
+    const file = await fs.readFile(filePath);
+    let chunks = [];
+    for await (const chunk of IPFS.node.add(file)) {
+      chunks.push(chunk);
+    }
+    return chunks[0].cid.toString().replace("CID(", "").replace(")", "");
+  }
+
+  static async get(cid) {
+    for await (const file of IPFS.node.get(cid, { timeout: 3000 })) {
+      if (!file.content) continue;
+
+      const content = new BufferList();
+      for await (const chunk of file.content) {
+        content.append(chunk);
+      }
+
+      console.log(content.toString());
+    }
+  }
+
+  static publish(cid) {
     return new Promise((resolve, reject) =>
-      exec(`ipfs name publish ${ipfspath}`, (err, stdout, stderr) => {
+      exec(`ipfs name publish ${cid}`, (err, stdout, stderr) => {
         if (err) return reject({ err, stderr });
         const ipns = stdout.split(" ")[2];
         resolve(ipns.substr(0, ipns.length - 1).trim());

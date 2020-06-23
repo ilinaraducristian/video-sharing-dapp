@@ -22,23 +22,42 @@
     </script>
   </head>
   <body>
-    <div class="container" id="main">
+    <div class="container-fluid" id="main">
       <form>
-        <div class="row">
-          <div class="col-2">LOGO</div>
-          <div class="col-8">
-            <div class="form-group">
-              <input type="text" class="form-control" id="user-ipfs-address" />
-            </div>
+        <div class="row align-items-center">
+          <svg
+            class="menu col-1"
+            viewBox="0 0 24 24"
+            preserveAspectRatio="xMidYMid meet"
+            focusable="false"
+            class="style-scope yt-icon"
+          >
+            <g class="style-scope yt-icon">
+              <path
+                d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"
+                class="style-scope yt-icon"
+              ></path>
+            </g>
+          </svg>
+          <img class="col-1" src="logo.png" alt="Vdapp" />
+          <div class="col-9 form-group" style="margin-bottom: 0;">
+            <input
+              type="text"
+              class="form-control"
+              id="user-eth-address"
+              value="0x0baf30a9798468ecbc22af0c35e899e6dc7f15f4"
+              placeholder="User ethereum address"
+            />
           </div>
-          <div class="col-2">
+          <div class="col-1">
             <button type="button" class="btn" id="search">
               🔎
             </button>
           </div>
         </div>
       </form>
-      User:
+      <div id="loading" style="display: none;">Loading...</div>
+      <div id="videos"></div>
     </div>
   </body>
 </html>
