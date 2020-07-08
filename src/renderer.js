@@ -1,4 +1,5 @@
 const { ipcRenderer, ipcMain } = require("electron");
+const db = require("./db");
 $(document).ready(main);
 
 function main() {
@@ -17,12 +18,19 @@ function main() {
     searching = false;
   });
 
+  ipcRenderer.on("app-ready", (event, data) => {
+    console.log("app-ready");
+  });
+
   $("#search").click((event) => {
-    $("#loading").toggle();
-    if (searching === true) return false;
-    searching = true;
-    ipcRenderer.send("search", searchBar.val());
-    // createList([{ name: "ahbasdbasjkdbajks ads", duration: "13:53" }]);
+    //   $("#loading").toggle();
+    //   if (searching === true) return false;
+    //   searching = true;
+    //   ipcRenderer.send("search", searchBar.val());
+    // db.updateUser({ firstName: "asd" }).then((value) => {
+    //   console.log(value);
+    // });
+    ipcRenderer.send("asd");
     return false;
   });
 }

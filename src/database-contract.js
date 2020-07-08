@@ -1,15 +1,16 @@
-module.exports = class Database {
-  static web3;
+const web3 = require("./web3");
+
+module.exports = class DatabaseContract {
   static abi;
   static bin;
 
   constructor(address, options) {
     try {
       if (address == undefined && options == undefined) {
-        this.contract = new Database.web3.eth.Contract(Database.abi);
+        this.contract = new web3.eth.Contract(DatabaseContract.abi);
       } else {
-        this.contract = new Database.web3.eth.Contract(
-          Database.abi,
+        this.contract = new web3.eth.Contract(
+          DatabaseContract.abi,
           address,
           options
         );
@@ -24,17 +25,17 @@ module.exports = class Database {
     );
     if (contractKey == undefined) throw new Error("Contract not found!");
     const contract = contracts[contractKey];
-    Database.abi = JSON.parse(contract.abi);
-    Database.bin = contract.bin;
-    Database.web3 = web3;
+    DatabaseContract.abi = JSON.parse(contract.abi);
+    DatabaseContract.bin = contract.bin;
+    web3 = web3;
   }
 
   static async deploy(from) {
-    const newContract = new Database();
+    const newContract = new DatabaseContract();
 
     await newContract.contract
       .deploy({
-        data: `0x${Database.bin}`,
+        data: `0x${DatabaseContract.bin}`,
       })
       .send({
         from,
@@ -50,7 +51,7 @@ module.exports = class Database {
   async getUser(from) {
     const callResponse = await this.contract.methods.getUser(from).call();
     const userParameters = callResponse.map((hexParameter) =>
-      Database.web3.utils.toUtf8(hexParameter)
+      web3.utils.toUtf8(hexParameter)
     );
     return {
       firstName: userParameters[0],
@@ -64,11 +65,11 @@ module.exports = class Database {
   updateUser(user, from) {
     return this.contract.methods
       .updateUser(
-        Database.web3.utils.fromAscii(user.firstName),
-        Database.web3.utils.fromAscii(user.lastName),
-        Database.web3.utils.fromAscii(user.avatarIPFSAddress),
-        Database.web3.utils.fromAscii(user.videosIPFSAddress),
-        Database.web3.utils.fromAscii(user.subscribersIPFSAddress)
+        web3.utils.fromAscii(user.firstName),
+        web3.utils.fromAscii(user.lastName),
+        web3.utils.fromAscii(user.avatarIPFSAddress),
+        web3.utils.fromAscii(user.videosIPFSAddress),
+        web3.utils.fromAscii(user.subscribersIPFSAddress)
       )
       .send({ from });
   }

@@ -1,41 +1,30 @@
 const { app, BrowserWindow } = require("electron");
 const path = require("path");
 const { ipcMain } = require("electron");
-const Web3 = require("web3");
+const web3 = require("./web3");
 const VideoProcessor = require("./video-processor");
 const IPFS = require("./ipfs");
 const fs = require("fs").promises;
 const os = require("os");
 const homedir = os.homedir();
 const tmpdir = os.tmpdir();
-const Database = require("./database");
+const DatabaseContract = require("./database-contract");
 
 if (require("electron-squirrel-startup")) {
   app.quit();
 }
 
-app.on("ready", createWindow);
-
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
-
-app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
-});
-
 let mainWindow;
-const web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
 const contractAddress = `0x32600864Dc2f94d8e62BBE7d63618120831CEaFd`;
 
 let keystore;
 let node;
-let database;
+let databaseContract;
 let isIPFSInitialized = false;
+let isETHInitialized = false;
+
+let ipfsIdentity;
+let ethIdentity;
 
 const createWindow = async () => {
   mainWindow = new BrowserWindow({
@@ -46,15 +35,57 @@ const createWindow = async () => {
 
   mainWindow.loadFile(path.join(__dirname, "index.html"));
 
-  // mainWindow.webContents.openDevTools();
+  mainWindow.webContents.openDevTools();
 
-  ipcMainEvents();
+  try {
+    await loadContracts();
+  } catch {
+    // show error
+    return;
+  }
 
-  loadContracts();
+  let user = localStorage.getItem("user");
+  if (user) {
+    user = JSON.parse(user);
+    await Promise.all(
+      IPFS.init(user.ipfsIdentity)
+        .then(() => {
+          ipfsIdentity = user.ipfsIdentity;
+        })
+        .catch(() => IPFS.init())
+        .then(() => {
+          isIPFSInitialized = true;
+        }),
+      web3.eth.personal
+        .unlockAccount(user.ethIdentity.address, user.ethIdentity.password, 300)
+        .then(() => {
+          ethIdentity = user.ethIdentity;
+        })
+        .catch(() => {
+          isETHInitialized = true;
+        })
+    );
+  } else {
+    await IPFS.init().then(() => {
+      isIPFSInitialized = true;
+    });
+    isETHInitialized = true;
+  }
 
-  IPFS.init().then(() => {
-    this.ipfsInitialized = true;
+  ipcMain.on("asd", () => {
+    mainWindow.webContents.send("app-ready", {});
   });
+
+  mainWindow.webContents.send("app-ready", {});
+
+  // ipcMainEvents();
+  // load contracts
+  // if(failed to load contracts) show message "app corrupt redownload" and stop app loading
+  // else continue
+  // start paralel:
+  // 1. if eth identity present load user data (name videos subs etc), if failed dont load anything and delete identity from db
+  // 2. if ipfs identity present create node with that identiy, if fail delete identity from db and create node with new identity => ipfs logged in = false
+  // after above 2 complete, register ipcMain events
 };
 
 async function loadContracts() {
@@ -65,8 +96,8 @@ async function loadContracts() {
     }
   );
   const contracts = JSON.parse(contractsFile).contracts;
-  Database.init(contracts, web3);
-  database = new Database(contractAddress);
+  DatabaseContract.init(contracts, web3);
+  databaseContract = new DatabaseContract(contractAddress);
 }
 
 function ipcMainEvents() {
@@ -83,7 +114,7 @@ function ipcMainEvents() {
 
   ipcMain.on("search", async (event, userIPFSAddress) => {
     const videos = [];
-    const user = await database.getUser(userIPFSAddress);
+    const user = await databaseContract.getUser(userIPFSAddress);
     const videosIPFSPath = (await IPFS.cat(user.videosIPFSAddress))
       .toString("utf-8")
       .match(/.+/g);
@@ -179,3 +210,17 @@ async function uploadVideo(filepath, name, description) {
 function sendToRenderer(channel, ...args) {
   mainWindow.webContents.send(channel, args);
 }
+
+app.on("ready", createWindow);
+
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
+});
+
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
+});
